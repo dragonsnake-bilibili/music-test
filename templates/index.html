@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta type="charset" charset="utf-8" />
+</head>
+
+<body>
+  <audio controls id="test-audio"></audio>
+  <input type="text" />
+  <select>
+    <option>1</option>
+    <option>2</option>
+    <option>3</option>
+  </select>
+
+  <script>
+    window.addEventListener("load", async () => {
+      const test_audio_player = document.getElementById("test-audio");
+      const request = fetch("music/556ded95-c6a2-44a5-9f92-24b9db295445");
+      const response = await request;
+      const audio = await response.blob();
+      test_audio_player.src = URL.createObjectURL(audio);
+    });
+  </script>
+</body>
+
+</html>

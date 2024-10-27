@@ -1,0 +1,7 @@
+root-directory = ""
+
+[segment-selection]
+length = 0.5
+skip-start = 0.05
+skip-end = 0.05
+randomize = true
