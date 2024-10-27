@@ -163,12 +163,15 @@ class Game(Form):
           if "Title" in metadata:
             information["names"].extend(metadata["Title"])
           self._musics.append(information)
+    self._candidates = [self._get_display_name(music) for music in self._musics]
     self._answer = tkinter.StringVar()
     self._answer_selector = tkinter.OptionMenu(
       None,
       self._answer,
-      *[self._get_display_name(music) for music in self._musics],
+      *self._candidates,
     )
+    self._input_variable = tkinter.StringVar()
+    self._input = tkinter.Entry(textvariable=self._input_variable)
     self._confirm = tkinter.Button(text="confirm")
     shuffle(self._musics)
 
@@ -205,7 +208,6 @@ class Game(Form):
     return True
 
   def play_audio(self, segment: AudioSegment, event: Event) -> None:
-    print("called with", segment, event)
     if segment.sample_width == 1:
       audio_format = pyaudio.paInt8
     elif segment.sample_width == 2:
@@ -273,6 +275,15 @@ class Game(Form):
       if not self.load_data():
         return
     self.update_status()
+  
+  def _update_selector(self, *args) -> None:
+    menu = self._answer_selector['menu']
+    menu.delete(0, 'end')
+
+    query = self._input_variable.get().strip()
+
+    for option in filter(lambda candidate: query in candidate, self._candidates):
+      menu.add_command(label=option, command=lambda value=option: self._answer.set(value))
 
   def submit(self) -> None:
     if self._finalized:
@@ -289,6 +300,11 @@ class Game(Form):
     self._status.pack(in_=window.window)
     self._play.pack(in_=window.window)
     self._continue.pack(in_=window.window)
+    self._input.pack(
+      in_=window.window,
+      padx=(window.window.winfo_width() * 0.15, window.window.winfo_width() * 0.15),
+      fill=tkinter.X,
+    )
     self._answer_selector.pack(
       in_=window.window,
       padx=(window.window.winfo_width() * 0.15, window.window.winfo_width() * 0.15),
@@ -303,6 +319,8 @@ class Game(Form):
     self._next.config(command=partial(Game.next, self))
     self.load_data()
 
+    self._input_variable.trace("w", partial(Game._update_selector, self))
+
   def unload(self, window: Window) -> None:
     super().unload(window)
     if self._playing is not None:
@@ -314,6 +332,7 @@ class Game(Form):
     self._answer_display.destroy()
     self._confirm.destroy()
     self._next.destroy()
+    self._input.destroy()
     self._audio_server.terminate()
 
 
