@@ -223,6 +223,11 @@ class Session:
     if not self._finalized:
       self._finalized = True
     return music["id"]
+  
+  @property
+  def start_time(self) -> int | None:
+    """Get start time of current music."""
+    return self._start_time
 
   @property
   def sliced_music(self) -> bytes | None:
@@ -315,6 +320,18 @@ def get_full_music() -> flask.Response:
   if session is None:
     return make_response("", 403)
   return get_music(session, sliced=False)
+
+@app.get("/start-time")
+def get_start_time() -> flask.Response:
+  """Get start time of current music."""
+  session_id = request.cookies.get(key="id", default="", type=str)
+  session = sessions.get(session_id)
+  if session is None:
+    return make_response("", 403)
+  start_time = session.start_time
+  if start_time is None:
+    return make_response("", 404)
+  return make_response({"start_time": start_time})
 
 
 @app.get("/test-music")

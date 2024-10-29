@@ -7,16 +7,16 @@
     * {
       box-sizing: border-box;
     }
-  
+
     body>* {
       margin: 24px 0;
     }
-  
+
     #status {
       text-align: center;
       width: 100%;
     }
-  
+
     #audio-holder {
       width: min-content;
       height: min-content;
@@ -24,21 +24,21 @@
       left: 50%;
       transform: translateX(-50%);
     }
-  
+
     #selector-holder {
       display: grid;
       width: 60%;
       position: relative;
       left: 20%;
     }
-  
+
     #button-holder {
       width: fit-content;
       position: relative;
       left: 50%;
       transform: translateX(-50%);
     }
-  
+
     #answer {
       text-align: center;
       width: 100%;
@@ -112,6 +112,13 @@
         return feed_audio(await response.blob());
       }
 
+      async function get_start_time() {
+        const request = fetch("/start-time");
+        const response = await request;
+        const payload = await response.json();
+        return payload.start_time;
+      }
+
       async function get_answer() {
         const request = fetch("/answer");
         const response = await request;
@@ -151,7 +158,6 @@
         }
         const payload = await response.json();
         alert(`guessed ${payload.correct} out of ${payload.total} musics(${Math.round(payload.correct / payload.total * 10000) / 100}%)`);
-        // await logout();
         window.location.reload();
       }
 
@@ -224,6 +230,8 @@
             return;
           }
           await load_full_audio();
+          const start_time = await get_start_time();
+          audio_player.currentTime = start_time / 1000;
           if (!state.answer_shown) {
             await show_answer(false);
             state.answer_shown = true;
