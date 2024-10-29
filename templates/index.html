@@ -3,24 +3,278 @@
 
 <head>
   <meta type="charset" charset="utf-8" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+  
+    body>* {
+      margin: 24px 0;
+    }
+  
+    #status {
+      text-align: center;
+      width: 100%;
+    }
+  
+    #audio-holder {
+      width: min-content;
+      height: min-content;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  
+    #selector-holder {
+      display: grid;
+      width: 60%;
+      position: relative;
+      left: 20%;
+    }
+  
+    #button-holder {
+      width: fit-content;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  
+    #answer {
+      text-align: center;
+      width: 100%;
+    }
+  </style>
 </head>
 
 <body>
-  <audio controls id="test-audio"></audio>
-  <input type="text" />
-  <select>
-    <option>1</option>
-    <option>2</option>
-    <option>3</option>
-  </select>
+  <div id="status"></div>
+  <div id="audio-holder"><audio controls id="audio-player"></audio></div>
+  <div id="selector-holder">
+    <input id="searcher" type="text" />
+    <select id="answer-selector"></select>
+  </div>
+  <div id="answer"></div>
+  <div id="button-holder">
+    <button id="submit">confirm</button>
+    <button id="full">show answer</button>
+    <button id="next">next</button>
+  </div>
 
   <script>
     window.addEventListener("load", async () => {
-      const test_audio_player = document.getElementById("test-audio");
-      const request = fetch("music/556ded95-c6a2-44a5-9f92-24b9db295445");
-      const response = await request;
-      const audio = await response.blob();
-      test_audio_player.src = URL.createObjectURL(audio);
+      const status = document.getElementById("status");
+      const audio_player = document.getElementById("audio-player");
+      const searcher = document.getElementById("searcher");
+      const answer_selector = document.getElementById("answer-selector");
+      const answer_display = document.getElementById("answer");
+      const submit = document.getElementById("submit");
+      const full = document.getElementById("full");
+      const next = document.getElementById("next");
+
+      // get session id
+      async function login() {
+        const request = fetch("/login");
+        const response = await request;
+      }
+
+      // close this session
+      async function logout() {
+        const request = fetch("/logout");
+        const response = await request;
+      }
+
+      async function update_status() {
+        const request = fetch("/summarize");
+        const response = await request;
+        const data = await response.json();
+        status.innerText = `current: ${data.current_index} / ${data.total} musics, ${data.correct} successful guesses`;
+      }
+
+      async function get_candidates() {
+        const request = fetch("/candidates");
+        const response = await request;
+        return await response.json();
+      }
+
+      async function feed_audio(blob) {
+        audio_player.src = URL.createObjectURL(blob);
+      }
+
+      async function load_test_audio() {
+        const request = fetch("/test-music");
+        const response = await request;
+        return feed_audio(await response.blob());
+      }
+
+      async function load_full_audio() {
+        const request = fetch("/music");
+        const response = await request;
+        return feed_audio(await response.blob());
+      }
+
+      async function get_answer() {
+        const request = fetch("/answer");
+        const response = await request;
+        const payload = await response.json();
+        return payload.answer;
+      }
+
+      async function show_answer(succeed) {
+        const answer = await get_answer();
+        answer_display.innerText = candidates.find((item) => (item.id === answer)).name;
+        if (succeed) {
+          answer_display.style.color = "green";
+        } else {
+          answer_display.style.color = "red";
+        }
+      }
+
+      async function submit_answer() {
+        const answer = answer_selector.value;
+        const request = fetch("/guess", {
+          method: "POST",
+          body: JSON.stringify({ guess_id: answer }),
+          headers: { "Content-Type": "application/json", }
+        });
+        const response = await request;
+        const payload = await response.json();
+        await update_status();
+        return show_answer(payload.result);
+      }
+      async function move_forward() {
+        const request = fetch("/next");
+        const response = await request;
+        if (response.status == 204) {
+          await update_status();
+          await load_test_audio();
+          return;
+        }
+        const payload = await response.json();
+        alert(`guessed ${payload.correct} out of ${payload.total} musics(${Math.round(payload.correct / payload.total * 10000) / 100}%)`);
+        // await logout();
+        window.location.reload();
+      }
+
+      await login();
+      window.addEventListener("beforeunload", async () => {
+        await logout();
+      });
+      await update_status();
+      const candidates = await get_candidates();
+      function update_selectable_candidate() {
+        answer_selector.innerHTML = "";
+        candidates.filter((item) => (item.name.toLocaleLowerCase().indexOf(searcher.value.toLocaleLowerCase()) !== -1)).forEach((item) => {
+          const selection = document.createElement("option");
+          selection.innerText = item.name;
+          selection.value = item.id;
+          answer_selector.appendChild(selection);
+        });
+      }
+      searcher.addEventListener("input", update_selectable_candidate);
+      update_selectable_candidate();
+      await load_test_audio();
+      next.disabled = true;
+
+      class State {
+        #finalized = false;
+        #full_music = false;
+        #answer_shown = false;
+        constructor() { }
+        get finalized() {
+          return this.#finalized;
+        }
+        set finalized(value) {
+          this.#finalized = value;
+          if (value) {
+            submit.disabled = true;
+            next.disabled = false;
+          } else {
+            submit.disabled = false;
+            next.disabled = true;
+          }
+        }
+        get full_music() {
+          return this.#full_music;
+        }
+        set full_music(value) {
+          this.#full_music = value;
+          if (value) {
+            this.finalized = true;
+          }
+        }
+        get answer_shown() {
+          return this.#answer_shown;
+        }
+        set answer_shown(value) {
+          this.#answer_shown = value;
+          if (value) {
+            this.finalized = true;
+          }
+        }
+      };
+
+      state = new State();
+
+      {
+        async function handle_full() {
+          if (full.disabled) {
+            return;
+          }
+          if (state.full_music) {
+            return;
+          }
+          await load_full_audio();
+          if (!state.answer_shown) {
+            await show_answer(false);
+            state.answer_shown = true;
+          }
+          state.full_music = true;
+          update_status();
+        }
+        async function handle_next() {
+          if (next.disabled) {
+            return;
+          }
+          state.full_music = false;
+          state.answer_shown = false;
+          state.finalized = false;
+          answer_display.innerText = "";
+          move_forward();
+        }
+        async function handle_submit() {
+          if (submit.disabled) {
+            return;
+          }
+          if (state.finalized) {
+            return;
+          }
+          state.finalized = true;
+          submit_answer();
+          state.answer_shown = true;
+        }
+
+        full.addEventListener("click", handle_full);
+        next.addEventListener("click", handle_next);
+        submit.addEventListener("click", handle_submit);
+        document.addEventListener("keypress", async (event) => {
+          if (event.target === searcher) {
+            return;
+          }
+          if (event.key === " ") {
+            if (audio_player.paused) {
+              audio_player.play();
+            } else {
+              audio_player.pause();
+            }
+          } else if (event.key === "Enter") {
+            handle_submit();
+          } else if (event.key === "j") {
+            handle_next();
+          } else if (event.key === "k") {
+            handle_full();
+          }
+        });
+      }
     });
   </script>
 </body>
